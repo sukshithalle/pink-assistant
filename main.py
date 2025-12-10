@@ -874,4 +874,3 @@ if __name__ == "__main__":
     print("Starting Pink Assistant...")
     assistant = PinkAssistant()
     assistant.run()
-    #print hello
