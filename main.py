@@ -8,8 +8,8 @@ Usage:
     - "pink select 2"
     - "pink play"
     - "pink play 3"
-    - "pink hold"            # <-- changed from "pause"
-    - "pink stop"            # <-- changed from "pause"
+    - "pink hold"            # <-- toggle play/pause via "hold" or "stop"
+    - "pink stop"
     - "pink next"
     - "pink previous"
     - "pink spotify volume up"
@@ -19,6 +19,7 @@ Usage:
     - "pink play faded on youtube"
     - "pink search faded on youtube"
     - "pink open youtube"
+    - "pink close youtube"  # <-- new: closes the YouTube tab or browser
 - Works on Windows. Relies on pyautogui and (optionally) pygetwindow for window positioning.
 """
 
@@ -44,7 +45,7 @@ except Exception as e:
     print("Error:", e)
     raise
 
-# optional for reliable window coordinates
+# optional for reliable window coordinates and window activation
 try:
     import pygetwindow as gw
 except Exception:
@@ -690,6 +691,65 @@ class PinkAssistant:
             self.voice.speak("Opening YouTube")
             webbrowser.open("https://www.youtube.com")
             return
+
+        # close youtube: try to close YouTube tab (Ctrl+W) after focusing a YouTube window; fallback to killing browsers
+        if "close youtube" in c or "close youtube tab" in c:
+            # First try to find and activate a window with "YouTube" in the title (if pygetwindow available)
+            try:
+                activated = False
+                if gw:
+                    try:
+                        # Look for any window whose title contains "YouTube"
+                        all_windows = gw.getAllWindows()
+                        for w in all_windows:
+                            title = (w.title or "").lower()
+                            if "youtube" in title:
+                                try:
+                                    w.activate()
+                                    time.sleep(0.25)
+                                    activated = True
+                                    break
+                                except Exception:
+                                    continue
+                    except Exception:
+                        # fallback to direct getWindowsWithTitle
+                        try:
+                            wins = gw.getWindowsWithTitle("YouTube")
+                            if wins:
+                                wins[0].activate()
+                                time.sleep(0.25)
+                                activated = True
+                        except Exception:
+                            activated = False
+
+                # Send Ctrl+W to close the active tab/window
+                try:
+                    pyautogui.hotkey('ctrl', 'w')
+                    time.sleep(0.2)
+                    self.voice.speak("Closed the current tab.")
+                    return
+                except Exception:
+                    # if sending hotkey fails, continue to fallback
+                    pass
+
+                # If Ctrl+W didn't work, fallback: try to kill common browser processes (Chrome, Edge, Firefox)
+                try:
+                    for proc in ("chrome.exe", "msedge.exe", "firefox.exe"):
+                        os.system(f"taskkill /f /im {proc} >nul 2>&1")
+                    self.voice.speak("Closed YouTube by closing the browser.")
+                    return
+                except Exception:
+                    self.voice.speak("Couldn't close YouTube.")
+                    return
+            except Exception:
+                # ultimate fallback: try Ctrl+W anyway
+                try:
+                    pyautogui.hotkey('ctrl', 'w')
+                    self.voice.speak("Closed the current tab.")
+                    return
+                except Exception:
+                    self.voice.speak("Couldn't close YouTube.")
+                    return
         # ------------------------------------------------------------
 
         if "battery" in c or "charge" in c:
