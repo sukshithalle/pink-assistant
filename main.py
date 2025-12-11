@@ -1027,3 +1027,71 @@ if __name__ == "__main__":
     print("Starting Pink Assistant...")
     assistant = PinkAssistant()
     assistant.run()
+"""pink search spotify <query>
+pink select <number>
+pink play
+pink play <number>
+pink hold
+pink stop
+pink resume
+pink playpause
+pink next
+pink previous
+pink back
+pink spotify volume up
+pink spotify volume down
+pink spotify louder
+pink spotify quieter
+pink spotify volume up <number>
+pink spotify volume down <number>
+pink shuffle
+pink like
+pink save
+pink heart
+pink open spotify
+
+pink open youtube
+pink play <query> on youtube
+pink search <query> on youtube
+pink youtube next
+pink next video
+pink youtube forward
+pink youtube forward <seconds>
+pink youtube fast forward <seconds>
+pink youtube rewind
+pink youtube rewind <seconds>
+pink youtube back <seconds>
+pink close youtube
+pink close video
+
+pink set brightness to <number>
+pink increase brightness
+pink increase brightness by <number>
+pink decrease brightness
+pink decrease brightness by <number>
+pink brightness up
+pink brightness down
+
+pink set volume to <number>
+pink increase volume
+pink increase volume by <number>
+pink decrease volume
+pink decrease volume by <number>
+pink mute
+
+pink open settings
+pink open settings wifi
+pink open settings display
+pink open settings sound
+pink open settings battery
+pink open settings bluetooth
+
+pink battery
+pink time
+
+pink open <appname>
+pink close <appname>
+
+pink shutdown
+pink sleep
+"""
