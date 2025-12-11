@@ -19,7 +19,10 @@ Usage:
     - "pink play faded on youtube"
     - "pink search faded on youtube"
     - "pink open youtube"
-    - "pink close youtube"  # <-- new: closes the YouTube tab or browser
+    - "pink close youtube"  # <-- closes the YouTube tab or browser (fallback)
+    - "pink youtube next"   # <-- next video
+    - "pink youtube forward 30 seconds"  # <-- fast forward
+    - "pink youtube rewind 15"           # <-- slow in / rewind
 - Works on Windows. Relies on pyautogui and (optionally) pygetwindow for window positioning.
 """
 
@@ -150,7 +153,7 @@ class VoiceEngine:
             if sys.platform == "win32":
                 os.system(f'PowerShell -Command "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak(\'{text}\');"')
             else:
-                os.system(f'echo "{text}"')
+                os.system(f'echo \"{text}\"')
         except Exception:
             pass
 
@@ -462,6 +465,93 @@ class AppController:
             print("like/unlike error:", e)
             return False
 
+# ========== YouTube Controller (basic controls) ==========
+class YouTubeController:
+    """
+    Lightweight YouTube controls using keyboard shortcuts and pyautogui.
+    Provides: next_video, close_tab, seek (forward/back).
+    """
+    def __init__(self):
+        pass
+
+    def _focus_youtube_window(self):
+        """
+        Try to activate a window with 'youtube' in the title using pygetwindow (gw).
+        Returns True if activated, False otherwise.
+        """
+        if gw:
+            try:
+                for w in gw.getAllWindows():
+                    if w and (w.title or "").lower().find("youtube") != -1:
+                        try:
+                            w.activate()
+                            time.sleep(0.25)
+                            return True
+                        except Exception:
+                            continue
+            except Exception:
+                try:
+                    wins = gw.getWindowsWithTitle("YouTube")
+                    if wins:
+                        wins[0].activate()
+                        time.sleep(0.25)
+                        return True
+                except Exception:
+                    return False
+        return False
+
+    def next_video(self):
+        """
+        Go to next video. YouTube player shortcut: Shift+N (in player).
+        If that doesn't work, try pressing 'n' as fallback.
+        """
+        try:
+            self._focus_youtube_window()
+            time.sleep(0.1)
+            # Shift+N
+            pyautogui.hotkey('shift', 'n')
+            return True
+        except Exception:
+            try:
+                pyautogui.press('n')
+                return True
+            except Exception:
+                return False
+
+    def close_tab(self):
+        """
+        Close the current tab (Ctrl+W). If that fails, caller may fallback to killing browser.
+        """
+        try:
+            self._focus_youtube_window()
+            time.sleep(0.1)
+            pyautogui.hotkey('ctrl', 'w')
+            return True
+        except Exception:
+            try:
+                pyautogui.hotkey('ctrl', 'w')
+                return True
+            except Exception:
+                return False
+
+    def seek(self, seconds=10, direction='forward'):
+        """
+        Seek forward/backward by seconds. Uses 'l' (forward 10s) and 'j' (back 10s).
+        For non-10-second steps, repeated presses are used.
+        """
+        try:
+            self._focus_youtube_window()
+            time.sleep(0.08)
+            # compute number of 10s jumps
+            presses = max(1, int(round(abs(seconds) / 10)))  # e.g., 30s => 3 presses of 'l'/'j'
+            key = 'l' if direction == 'forward' else 'j'
+            for _ in range(presses):
+                pyautogui.press(key)
+                time.sleep(0.06)
+            return True
+        except Exception:
+            return False
+
 # ========== System Controller (brightness/volume etc.) ==========
 class SystemController:
     def __init__(self, voice_engine):
@@ -640,6 +730,8 @@ class PinkAssistant:
     def __init__(self):
         self.voice = VoiceEngine()
         self.system = SystemController(self.voice)
+        # instantiate YouTube controller for basic video controls
+        self.youtube = YouTubeController()
         self.boot()
 
     def boot(self):
@@ -693,63 +785,62 @@ class PinkAssistant:
             return
 
         # close youtube: try to close YouTube tab (Ctrl+W) after focusing a YouTube window; fallback to killing browsers
-        if "close youtube" in c or "close youtube tab" in c:
-            # First try to find and activate a window with "YouTube" in the title (if pygetwindow available)
+        if "close youtube" in c or "close youtube tab" in c or "close video" in c or "close youtube tab" in c:
+            # First try controller's close_tab (which focuses youtube window if possible)
             try:
-                activated = False
-                if gw:
-                    try:
-                        # Look for any window whose title contains "YouTube"
-                        all_windows = gw.getAllWindows()
-                        for w in all_windows:
-                            title = (w.title or "").lower()
-                            if "youtube" in title:
-                                try:
-                                    w.activate()
-                                    time.sleep(0.25)
-                                    activated = True
-                                    break
-                                except Exception:
-                                    continue
-                    except Exception:
-                        # fallback to direct getWindowsWithTitle
-                        try:
-                            wins = gw.getWindowsWithTitle("YouTube")
-                            if wins:
-                                wins[0].activate()
-                                time.sleep(0.25)
-                                activated = True
-                        except Exception:
-                            activated = False
-
-                # Send Ctrl+W to close the active tab/window
-                try:
-                    pyautogui.hotkey('ctrl', 'w')
-                    time.sleep(0.2)
-                    self.voice.speak("Closed the current tab.")
-                    return
-                except Exception:
-                    # if sending hotkey fails, continue to fallback
-                    pass
-
-                # If Ctrl+W didn't work, fallback: try to kill common browser processes (Chrome, Edge, Firefox)
-                try:
-                    for proc in ("chrome.exe", "msedge.exe", "firefox.exe"):
-                        os.system(f"taskkill /f /im {proc} >nul 2>&1")
-                    self.voice.speak("Closed YouTube by closing the browser.")
-                    return
-                except Exception:
-                    self.voice.speak("Couldn't close YouTube.")
+                ok = self.youtube.close_tab()
+                if ok:
+                    self.voice.speak("Closed the current YouTube tab.")
                     return
             except Exception:
-                # ultimate fallback: try Ctrl+W anyway
-                try:
-                    pyautogui.hotkey('ctrl', 'w')
-                    self.voice.speak("Closed the current tab.")
-                    return
-                except Exception:
-                    self.voice.speak("Couldn't close YouTube.")
-                    return
+                pass
+
+            # If that didn't work, fallback: try to kill common browser processes (Chrome, Edge, Firefox)
+            try:
+                for proc in ("chrome.exe", "msedge.exe", "firefox.exe"):
+                    os.system(f"taskkill /f /im {proc} >nul 2>&1")
+                self.voice.speak("Closed YouTube by closing the browser.")
+                return
+            except Exception:
+                self.voice.speak("Couldn't close YouTube.")
+                return
+
+        # YouTube next / forward / rewind voice commands
+        # next video
+        if ("youtube next" in c) or ("next video" in c and "youtube" in c) or (c.strip() == "next video"):
+            ok = False
+            try:
+                ok = self.youtube.next_video()
+            except Exception:
+                ok = False
+            self.voice.speak("Playing next video." if ok else "Couldn't go to next video.")
+            return
+
+        # fast forward / forward N seconds (e.g., "youtube forward 30 seconds")
+        m = re.search(r'youtube\s+(?:fast\s+forward|forward|ff)\s+(\d+)', c)
+        if m:
+            secs = int(m.group(1))
+            ok = self.youtube.seek(seconds=secs, direction='forward')
+            self.voice.speak(f"Fast forwarded {secs} seconds." if ok else "Couldn't fast forward.")
+            return
+        # also accept "youtube forward" with no number -> default 10s
+        if any(kw in c for kw in ["youtube fast forward", "youtube forward", "fast forward youtube"]) and not re.search(r'(\d+)', c):
+            ok = self.youtube.seek(seconds=10, direction='forward')
+            self.voice.speak("Fast forwarded 10 seconds." if ok else "Couldn't fast forward.")
+            return
+
+        # rewind / slow in / back N seconds
+        m = re.search(r'youtube\s+(?:rewind|back|rew)\s+(\d+)', c)
+        if m:
+            secs = int(m.group(1))
+            ok = self.youtube.seek(seconds=secs, direction='back')
+            self.voice.speak(f"Rewinded {secs} seconds." if ok else "Couldn't rewind.")
+            return
+        # also accept "youtube rewind" "youtube back" without number -> default 10s
+        if any(kw in c for kw in ["youtube rewind", "youtube back", "youtube slow in", "slow in youtube"]) and not re.search(r'(\d+)', c):
+            ok = self.youtube.seek(seconds=10, direction='back')
+            self.voice.speak("Rewinded 10 seconds." if ok else "Couldn't rewind.")
+            return
         # ------------------------------------------------------------
 
         if "battery" in c or "charge" in c:
@@ -823,15 +914,17 @@ class PinkAssistant:
             self.voice.speak("Toggled play/pause." if ok else "Couldn't toggle play/pause.")
             return
 
-        # next / previous
-        if "next" in c:
+        # next / previous (spotify)
+        if "next" in c and "youtube" not in c:
             ok = self.system.apps.spotify_next()
             self.voice.speak("Skipped to next track." if ok else "Couldn't skip to next track.")
             return
         if "previous" in c or "back" in c:
-            ok = self.system.apps.spotify_previous()
-            self.voice.speak("Went to previous track." if ok else "Couldn't go to previous track.")
-            return
+            # avoid interfering with youtube rewind/back already handled (youtube keywords checked earlier)
+            if "spotify" in c or ("previous" in c and "youtube" not in c):
+                ok = self.system.apps.spotify_previous()
+                self.voice.speak("Went to previous track." if ok else "Couldn't go to previous track.")
+                return
 
         # spotify volume controls
         if "spotify" in c and any(w in c for w in ["volume", "louder", "quieter", "mute", "up", "down"]):
