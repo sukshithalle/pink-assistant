@@ -21,7 +21,6 @@ python -m pip install speechrecognition pyttsx3 psutil pyautogui
 python -m pip install screen-brightness-control pywin32 pygetwindow
 python -m pip install opencv-python mediapipe numpy
 
-
 REM Note: pyaudio install may fail on Windows without wheels; if it fails, follow instructions at:
 REM https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
 
