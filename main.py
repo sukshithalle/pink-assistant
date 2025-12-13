@@ -1,30 +1,4 @@
-"""
-Pink Assistant — full Spotify controls added (list-select + top-play update) + YouTube commands
 
-Usage:
-- Double-click run_pink.bat (installs dependencies then runs this file)
-- Say "pink" as the wake word before commands:
-    - "pink search spotify faded"
-    - "pink select 2"
-    - "pink play"
-    - "pink play 3"
-    - "pink hold"            # <-- toggle play/pause via "hold" or "stop"
-    - "pink stop"
-    - "pink next"
-    - "pink previous"
-    - "pink spotify volume up"
-    - "pink spotify volume down"
-    - "pink shuffle"
-    - "pink like"
-    - "pink play faded on youtube"
-    - "pink search faded on youtube"
-    - "pink open youtube"
-    - "pink close youtube"  # <-- closes the YouTube tab or browser (fallback)
-    - "pink youtube next"   # <-- next video
-    - "pink youtube forward 30 seconds"  # <-- fast forward
-    - "pink youtube rewind 15"           # <-- slow in / rewind
-- Works on Windows. Relies on pyautogui and (optionally) pygetwindow for window positioning.
-"""
 
 import os
 import sys
@@ -509,7 +483,8 @@ class YouTubeController:
             self._focus_youtube_window()
             time.sleep(0.1)
             # Shift+N
-            pyautogui.hotkey('shift', 'n')
+            pyautogui.press('n')
+
             return True
         except Exception:
             try:
@@ -557,6 +532,8 @@ class SystemController:
     def __init__(self, voice_engine):
         self.voice = voice_engine
         self.apps = AppController()
+        self.touchscreen = TouchscreenController(voice_engine)
+
 
     def play_sound(self, path):
         try:
@@ -725,8 +702,91 @@ class SystemController:
         now = datetime.now()
         return now.strftime("%I:%M %p")
 
+# ========== Touchless Touchscreen Controller ==========
+class TouchscreenController:
+    def __init__(self, voice_engine):
+        self.voice = voice_engine
+        self.running = False
+
+    def start(self):
+        import cv2
+        import mediapipe as mp
+        import numpy as np
+        import pyautogui
+        import math
+
+        self.running = True
+        self.voice.speak("Touchscreen mode activated")
+
+        screen_w, screen_h = pyautogui.size()
+        cap = cv2.VideoCapture(0)
+
+        mp_hands = mp.solutions.hands
+        hands = mp_hands.Hands(
+            max_num_hands=1,
+            min_detection_confidence=0.7,
+            min_tracking_confidence=0.7
+        )
+        mp_draw = mp.solutions.drawing_utils
+
+        click_delay = 0
+
+        while self.running:
+            success, frame = cap.read()
+            if not success:
+                continue
+
+            frame = cv2.flip(frame, 1)
+            h, w, _ = frame.shape
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = hands.process(rgb)
+
+            if results.multi_hand_landmarks:
+                hand = results.multi_hand_landmarks[0]
+                lm = hand.landmark
+
+                ix, iy = int(lm[8].x * w), int(lm[8].y * h)
+                tx, ty = int(lm[4].x * w), int(lm[4].y * h)
+                mx, my = int(lm[12].x * w), int(lm[12].y * h)
+
+                screen_x = np.interp(ix, [0, w], [0, screen_w])
+                screen_y = np.interp(iy, [0, h], [0, screen_h])
+                pyautogui.moveTo(screen_x, screen_y, duration=0.01)
+
+                pinch = math.hypot(ix - tx, iy - ty)
+                if pinch < 30 and click_delay == 0:
+                    pyautogui.click()
+                    click_delay = 15
+
+                if abs(my - iy) < 40:
+                    pyautogui.scroll(40 if my < iy else -40)
+
+                # ✋ Exit gesture (2 fingers down)
+                if lm[8].y > lm[6].y and lm[12].y > lm[10].y:
+                    self.voice.speak("Touchscreen mode deactivated")
+                    break
+
+                mp_draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
+
+            if click_delay > 0:
+                click_delay -= 1
+
+            cv2.imshow("Touchscreen Mode", frame)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+
+        self.running = False
+        cap.release()
+        cv2.destroyAllWindows()
+
 # ========== Main Assistant ==========
 class PinkAssistant:
+    
+
+        self.running = False
+        cap.release()
+        cv2.destroyAllWindows()
+
     def __init__(self):
         self.voice = VoiceEngine()
         self.system = SystemController(self.voice)
@@ -758,6 +818,10 @@ class PinkAssistant:
             return
         if CONFIG["wake_word"] in c:
             c = c.replace(CONFIG["wake_word"], "").strip()
+        if "activate touchscreen mode" in c:
+            self.system.touchscreen.start()
+            return
+
 
         # ----------------- YouTube commands (added) -----------------
         # play <query> on youtube  OR play <query> youtube
@@ -1027,71 +1091,3 @@ if __name__ == "__main__":
     print("Starting Pink Assistant...")
     assistant = PinkAssistant()
     assistant.run()
-"""pink search spotify <query>
-pink select <number>
-pink play
-pink play <number>
-pink hold
-pink stop
-pink resume
-pink playpause
-pink next
-pink previous
-pink back
-pink spotify volume up
-pink spotify volume down
-pink spotify louder
-pink spotify quieter
-pink spotify volume up <number>
-pink spotify volume down <number>
-pink shuffle
-pink like
-pink save
-pink heart
-pink open spotify
-
-pink open youtube
-pink play <query> on youtube
-pink search <query> on youtube
-pink youtube next
-pink next video
-pink youtube forward
-pink youtube forward <seconds>
-pink youtube fast forward <seconds>
-pink youtube rewind
-pink youtube rewind <seconds>
-pink youtube back <seconds>
-pink close youtube
-pink close video
-
-pink set brightness to <number>
-pink increase brightness
-pink increase brightness by <number>
-pink decrease brightness
-pink decrease brightness by <number>
-pink brightness up
-pink brightness down
-
-pink set volume to <number>
-pink increase volume
-pink increase volume by <number>
-pink decrease volume
-pink decrease volume by <number>
-pink mute
-
-pink open settings
-pink open settings wifi
-pink open settings display
-pink open settings sound
-pink open settings battery
-pink open settings bluetooth
-
-pink battery
-pink time
-
-pink open <appname>
-pink close <appname>
-
-pink shutdown
-pink sleep
-"""

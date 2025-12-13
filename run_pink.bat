@@ -17,6 +17,10 @@ REM Upgrade pip and install required packages (best-effort)
 echo Installing / checking required Python packages...
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install pyttsx3 SpeechRecognition psutil screen-brightness-control pywin32 pyautogui pyaudio winsound
+python -m pip install speechrecognition pyttsx3 psutil pyautogui
+python -m pip install screen-brightness-control pywin32 pygetwindow
+python -m pip install opencv-python mediapipe numpy
+
 
 REM Note: pyaudio install may fail on Windows without wheels; if it fails, follow instructions at:
 REM https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
