@@ -820,7 +820,7 @@ class PinkAssistant:
             return
         if CONFIG["wake_word"] in c:
             c = c.replace(CONFIG["wake_word"], "").strip()
-        if "activate touchscreen mode" in c or "activate touch screen mode" in c:
+        if "activate touchscreen mode" in c:
             try:
                 if self.system and getattr(self.system, "touchscreen", None):
                     self.system.touchscreen.start()
