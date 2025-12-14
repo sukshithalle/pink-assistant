@@ -28,9 +28,9 @@ except Exception:
 
 # ========== CONFIG ==========
 CONFIG = {
-    "wake_word": "pink",        # assistant will ONLY respond when this word appears
+    "wake_word": "pink",
     "user_name": "sir",
-    "mustang_sound": None,     # optional: put a .wav/.mp3 file path to play at boot
+    "mustang_sound": r"C:\Users\alles\Downloads\mustang-7-87449 (1).mp3",
     "app_paths": {
         "chrome": "chrome.exe",
         "whatsapp": "whatsapp.exe",
@@ -542,9 +542,10 @@ class SystemController:
     def play_sound(self, path):
         try:
             if path and os.path.exists(path):
-                winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
-        except Exception:
-            pass
+                from playsound import playsound
+            playsound(path)   # blocks until finished
+        except Exception as e:
+            print("Sound error:", e)
 
     def check_battery(self):
         try:
@@ -786,19 +787,23 @@ class TouchscreenController:
 # ========== Main Assistant ==========
 class PinkAssistant:
     def __init__(self):
+        self.play_boot_sound()
         self.voice = VoiceEngine()
         # SystemController will attempt to instantiate TouchscreenController inside its __init__
         self.system = SystemController(self.voice)
         # instantiate YouTube controller for basic video controls
         self.youtube = YouTubeController()
         self.boot()
+    def play_boot_sound(self):
+        try:
+            path = CONFIG.get("mustang_sound")
+            if path and os.path.exists(path):
+                from playsound import playsound
+            playsound(path)
+        except Exception as e:
+            print("Boot sound error:", e)
 
     def boot(self):
-        if CONFIG.get("mustang_sound"):
-            try:
-                self.system.play_sound(CONFIG["mustang_sound"])
-            except Exception:
-                pass
         self.voice.speak(f"All systems operational. Good {self.get_time_of_day()}, {CONFIG.get('user_name','sir')}.")
         try:
             batt = self.system.check_battery()
