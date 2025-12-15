@@ -38,7 +38,7 @@ CONFIG = {
         "spotify": "spotify.exe",
         "vscode": "code.exe",
         "cmd": "cmd.exe",
-        "notepad": "notepad.exe"
+        "notepad": "notepad.exe",
     }
 }
 
@@ -87,77 +87,72 @@ def _extract_number_from_text(text):
     return None
 
 # ========== Voice Engine ==========
+import queue
+import threading
+
 class VoiceEngine:
     def __init__(self):
         self.recognizer = sr.Recognizer()
         self.mic = sr.Microphone()
+
         self.recognizer.energy_threshold = 300
         self.recognizer.dynamic_energy_threshold = True
         self.recognizer.pause_threshold = 1.6
         self.recognizer.non_speaking_duration = 1.2
+
         with self.mic as source:
             print("Calibrating microphone once...")
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
-        self.engine = None
-        self.last_command_time = 0
-        self._init_tts()
+        self.engine = pyttsx3.init('sapi5')
+        self.engine.setProperty('rate', 170)
+        self.engine.setProperty('volume', 1.0)
 
-    def _init_tts(self):
-        try:
-            self.engine = pyttsx3.init(driverName='sapi5')
-        except Exception:
+        # 🔒 SPEECH QUEUE (THIS IS THE MAGIC)
+        self.speech_queue = queue.Queue()
+
+        # 🔁 ONE background speaker thread
+        self.speaker_thread = threading.Thread(
+            target=self._speech_loop,
+            daemon=True
+        )
+        self.speaker_thread.start()
+
+    def _speech_loop(self):
+        while True:
+            text = self.speech_queue.get()
             try:
-                self.engine = pyttsx3.init()
-            except Exception:
-                self.engine = None
-        if self.engine:
-            try:
-                self.engine.setProperty('rate', 170)
-                self.engine.setProperty('volume', 1.0)
-            except Exception:
-                pass
+                self.engine.say(text)
+                self.engine.runAndWait()
+            except Exception as e:
+                print("TTS error:", e)
+            self.speech_queue.task_done()
 
     def speak(self, text):
         if not text:
             return
         print(f"PINK: {text}")
-        try:
-            if self.engine:
-                self.engine.say(text)
-                self.engine.runAndWait()
-                return
-        except Exception:
-            pass
-        try:
-            if sys.platform == "win32":
-                os.system(f'PowerShell -Command "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak(\'{text}\');"')
-            else:
-                os.system(f'echo \"{text}\"')
-        except Exception:
-            pass
+        self.speech_queue.put(text)
 
     def listen(self, timeout=8, phrase_time_limit=12):
         with self.mic as source:
             print("Listening...")
             try:
-                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
+                audio = self.recognizer.listen(
+                    source,
+                    timeout=timeout,
+                    phrase_time_limit=phrase_time_limit
+                )
             except sr.WaitTimeoutError:
                 return ""
+
             try:
-                text = self.recognizer.recognize_google(audio)
-                text = text.lower()
+                text = self.recognizer.recognize_google(audio).lower()
                 print("User said:", text)
-                self.last_command_time = time.time()
                 return text
-            except sr.UnknownValueError:
+            except:
                 return "unrecognized"
-            except sr.RequestError as e:
-                print("Speech API request error:", e)
-                return "unrecognized"
-            except Exception as e:
-                print("Listen error:", e)
-                return "unrecognized"
+
 
 # ========== App Controller ==========
 class AppController:
@@ -536,8 +531,10 @@ class SystemController:
         # instantiate touchscreen controller (TouchscreenController is defined later in file)
         try:
             self.touchscreen = TouchscreenController(voice_engine)
-        except Exception:
+        except Exception as e:
             self.touchscreen = None
+            print("TouchscreenController initialization failed:", e)
+
 
     def play_sound(self, path):
         try:
@@ -712,7 +709,10 @@ class TouchscreenController:
     def __init__(self, voice_engine):
         self.voice = voice_engine
         self.running = False
-
+    def stop(self):
+        if self.running:
+            self.running = False
+            self.voice.speak("Touchscreen mode deactivated") 
     def start(self):
         import cv2
         import mediapipe as mp
@@ -765,21 +765,13 @@ class TouchscreenController:
 
                 if abs(my - iy) < 40:
                     pyautogui.scroll(40 if my < iy else -40)
-
-                # ✋ Exit gesture (2 fingers down)
-                if lm[8].y > lm[6].y and lm[12].y > lm[10].y:
-                    self.voice.speak("Touchscreen mode deactivated")
-                    break
-
                 mp_draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
-
+                
             if click_delay > 0:
                 click_delay -= 1
 
             cv2.imshow("Touchscreen Mode", frame)
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-
+            
         self.running = False
         cap.release()
         cv2.destroyAllWindows()
@@ -787,30 +779,35 @@ class TouchscreenController:
 # ========== Main Assistant ==========
 class PinkAssistant:
     def __init__(self):
-        self.play_boot_sound()
+        
         self.voice = VoiceEngine()
         # SystemController will attempt to instantiate TouchscreenController inside its __init__
         self.system = SystemController(self.voice)
         # instantiate YouTube controller for basic video controls
         self.youtube = YouTubeController()
+        self.play_boot_sound()
         self.boot()
     def play_boot_sound(self):
         try:
             path = CONFIG.get("mustang_sound")
             if path and os.path.exists(path):
                 from playsound import playsound
-            playsound(path)
+                import threading
+
+            threading.Thread(
+                target=playsound,
+                args=(path,),
+                daemon=True
+            ).start()   # ✅ NON-BLOCKING
         except Exception as e:
             print("Boot sound error:", e)
 
     def boot(self):
         self.voice.speak(f"All systems operational. Good {self.get_time_of_day()}, {CONFIG.get('user_name','sir')}.")
-        try:
-            batt = self.system.check_battery()
-            self.voice.speak(batt)
-        except Exception:
-            pass
-
+        time.sleep(1.0)  # ✅ ADD THIS
+        batt = self.system.check_battery()
+        self.voice.speak(batt)
+          # ✅ ADD THIS
     def get_time_of_day(self):
         h = datetime.now().hour
         if h < 12:
@@ -825,17 +822,28 @@ class PinkAssistant:
             return
         if CONFIG["wake_word"] in c:
             c = c.replace(CONFIG["wake_word"], "").strip()
+        # ---------- Touchscreen voice commands ----------
         if "activate touchscreen mode" in c or "activate touch screen mode" in c:
-            try:
-                if self.system and getattr(self.system, "touchscreen", None):
-                    self.system.touchscreen.start()
-                else:
-                    self.voice.speak("Touchscreen controller is not available.")
-            except Exception:
-                self.voice.speak("Couldn't activate touchscreen mode.")
+            if self.system and self.system.touchscreen:
+                threading.Thread(
+    target=self.system.touchscreen.start,
+    daemon=True
+).start()
+
+            else:
+                self.voice.speak("Touchscreen controller is not available.")
             return
 
-                # ----------------- YouTube commands (added) -----------------
+        if "deactivate touchscreen mode" in c or "stop touchscreen mode" in c:
+            if self.system and self.system.touchscreen:
+                self.system.touchscreen.stop()
+            else:
+                self.voice.speak("Touchscreen controller is not available.")
+            return
+# ----------------------------------------------
+    
+
+# ----------------- YouTube commands (added) -----------------
 
         # open youtube and search <query> (combined command)
         m = re.search(r'open\s+youtube\s+(?:and\s+)?search\s+(?:for\s+)?(.+)', c)

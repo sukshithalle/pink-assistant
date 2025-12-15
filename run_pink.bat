@@ -1,30 +1,29 @@
 @echo off
 chcp 65001 >nul
 echo ======================================
-echo  Pink Assistant — One click installer
+echo  Pink Assistant — Starting
 echo ======================================
-echo.
 
-REM Ensure python is on PATH
-where python >nul 2>&1
+REM Ensure Python 3.10 exists
+py -3.10 --version >nul 2>&1
 IF ERRORLEVEL 1 (
-  echo Python not found on PATH. Install Python 3.9+ and ensure 'python' is in PATH.
-  pause
-  exit /b 1
+    echo Python 3.10 not found. Please install Python 3.10.
+    pause
+    exit /b 1
 )
 
-REM Upgrade pip and install required packages (best-effort)
-echo Installing / checking required Python packages...
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install pyttsx3 SpeechRecognition psutil screen-brightness-control pywin32 pyautogui pyaudio winsound
-python -m pip install speechrecognition pyttsx3 psutil pyautogui
-python -m pip install screen-brightness-control pywin32 pygetwindow
-python -m pip install opencv-python mediapipe numpy
-python -m pip install playsound
-python -m pip install playsound==1.2.2
+REM Create venv if not exists
+if not exist venv310 (
+    echo Creating virtual environment...
+    py -3.10 -m venv venv310
+)
 
-REM Note: pyaudio install may fail on Windows without wheels; if it fails, follow instructions at:
-REM https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
+REM Activate venv
+call venv310\Scripts\activate
+
+REM Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
 
 echo.
 echo Launching Pink Assistant...

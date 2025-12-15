@@ -1,0 +1,12 @@
+SpeechRecognition
+pyttsx3
+psutil
+screen-brightness-control
+pywin32
+pyautogui
+pygetwindow
+playsound==1.2.2
+opencv-python
+mediapipe
+numpy
+pyaudio
