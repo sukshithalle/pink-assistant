@@ -7,7 +7,7 @@ Usage:
     - "pink search spotify faded"
     - "pink select 2"
     - "pink play"
-    - "pink play 3"
+    - "pink play 3"`
     - "pink pause"
     - "pink next"
     - "pink previous"
@@ -18,14 +18,16 @@ Usage:
 - Works on Windows. Relies on pyautogui and (optionally) pygetwindow for window positioning.
 """
 import threading
+import pyautogui
 import json
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
 import json
 import socket
 import win32com.client
-
+import ollama
 import os
+import keyboard
 import sys
 import time
 import re
@@ -138,9 +140,12 @@ def internet_available():
 # ========== Voice Engine ==========
 class VoiceEngine:
     def __init__(self):
-        self.recognizer = sr.Recognizer()
-        self.mic = sr.Microphone()
-        self.engine = pyttsx3.init(driverName="sapi5")
+        import speech_recognition as sr
+        import pyttsx3
+
+        self.recognizer = sr.Recognizer()   # 🔥 REQUIRED
+        self.engine = pyttsx3.init()
+
         self.engine.setProperty("rate", 170)
         self.engine.setProperty("volume", 1.0)
 
@@ -149,6 +154,7 @@ class VoiceEngine:
             os.path.dirname(__file__),
             "models",
             "vosk-model"
+            "vosk-model-small-en-us-0.15"
         )
 
         if not os.path.exists(model_path):
@@ -161,9 +167,20 @@ class VoiceEngine:
     def speak(self, text):
         if not text:
             return
+
         print(f"PINK: {text}")
-        self.engine.say(text)
-        self.engine.runAndWait()
+
+        try:
+            self.engine.stop()
+            self.engine.say(text)
+            self.engine.runAndWait()
+        except Exception as e:
+            print("TTS ERROR:", e)
+    def stop(self):
+        try:
+            self.engine.stop()
+        except:
+            pass
 
     def listen_google(self, timeout=6, phrase_time_limit=6):
         with self.mic as source:
@@ -183,13 +200,20 @@ class VoiceEngine:
         return ""
 
     def listen(self):
+        import speech_recognition as sr
+
         try:
-            if internet_available():
+            with sr.Microphone() as source:
                 print("Using Google Speech API")
-                return self.listen_google()
-            else:
-                print("No internet — using offline Vosk")
-                return self.listen_vosk()
+
+                # 🔥 FIX HERE (correct place)
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+
+                audio = self.recognizer.listen(source, phrase_time_limit=5)
+
+            text = self.recognizer.recognize_google(audio)
+            return text.lower()
+
         except Exception as e:
             print("Speech error:", e)
             return ""
@@ -263,6 +287,62 @@ class AppController:
         return len(app_index)
 
     
+    def open_as_website(self, name):
+        import webbrowser
+
+        name = name.lower().strip().replace(" ", "")
+
+        # special cases
+        SPECIAL_SITES = {
+            "chatgpt": "https://chat.openai.com",
+            "whatsapp": "https://web.whatsapp.com"
+        }
+
+        if name in SPECIAL_SITES:
+            webbrowser.open(SPECIAL_SITES[name])
+            return True
+
+        # default
+        if "." in name:
+            url = f"https://{name}"
+        else:
+            url = f"https://www.{name}.com"
+
+        try:
+            webbrowser.open(url)
+            return True
+        except:
+            return False
+
+
+    def open_and_click_first_result(self, query):
+        import webbrowser
+        import time
+        import pyautogui
+
+        # open google search
+        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        webbrowser.open(url)
+
+        time.sleep(3)
+
+        # focus browser (reuse your existing function if possible)
+        try:
+            self.switch_to_app("chrome")
+        except:
+            pass
+
+        time.sleep(1)
+
+        # navigate to first result
+        for _ in range(6):   # safer than fixed 5
+            pyautogui.press("tab")
+            time.sleep(0.1)
+
+        pyautogui.press("enter")
+        return True
+    
+    
     
     
     
@@ -310,7 +390,21 @@ class AppController:
     def open_app(self, name):
         name = name.lower().strip()
 
-        # 1️⃣ Config paths (fast)
+        # 🌐 Known Web Apps
+        web_apps = {
+            "gmail": "https://mail.google.com",
+            "youtube": "https://www.youtube.com",
+            "google": "https://www.google.com",
+            "chatgpt": "https://chat.openai.com",
+            "instagram": "https://www.instagram.com",
+            "facebook": "https://www.facebook.com"
+        }
+
+        if name in web_apps:
+            os.system(f"start {web_apps[name]}")
+            return True
+
+        # 1️⃣ Exact match in CONFIG
         if name in CONFIG.get("app_paths", {}):
             try:
                 subprocess.Popen(CONFIG["app_paths"][name], shell=True)
@@ -318,7 +412,7 @@ class AppController:
             except:
                 pass
 
-        # 2️⃣ Start Menu lookup (REAL FIX)
+        # 2️⃣ Start Menu search
         path = self.start_menu.find(name)
         if path:
             try:
@@ -327,16 +421,25 @@ class AppController:
             except:
                 pass
 
-        # 3️⃣ Last fallback
-        try:
-            subprocess.Popen(["cmd", "/c", "start", "", name], shell=True)
+        # 3️⃣ Scanned app index
+        app_index = self.load_app_index()
+        for app_name, path in app_index.items():
+            if name in app_name:
+                try:
+                    subprocess.Popen(path)
+                    return True
+                except:
+                    pass
+
+       # 4️⃣ Try opening as direct website
+        if self.open_as_website(name):
             return True
-        except:
-            pass
 
-        return False
-
-
+        # 5️⃣ FINAL fallback → Google search + open first result
+        return self.open_and_click_first_result(name)
+        
+        
+        
 
     def close_app(self, name):
         name = name.lower().strip()
@@ -963,12 +1066,317 @@ class StartMenuIndexer:
             if spoken_name in name:
                 return path
         return None
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
+class SimpleRAG:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.docs = []
+        self.vectorizer = TfidfVectorizer()
+        self.vectors = None
+        self.load_data()
+
+    def load_data(self):
+        if not os.path.exists(self.filepath):
+            return
+        
+        with open(self.filepath, "r", encoding="utf-8") as f:
+            self.docs = [line.lower().strip() for line in f.readlines() if line.strip()]
+            print("RAG loaded docs:", self.docs)
+
+        if self.docs:
+            self.vectors = self.vectorizer.fit_transform(self.docs)
+
+    def retrieve(self, query, top_k=3):
+        if not self.docs:
+            return []
+
+        query_vec = self.vectorizer.transform([query.lower()])
+        sims = cosine_similarity(query_vec, self.vectors).flatten()
+
+        top_indices = sims.argsort()[-top_k:][::-1]
+        return [self.docs[i] for i in top_indices]
+    
+    
+        
+        
+        
+class ActivityTracker:
+    def __init__(self, app_controller):
+        self.apps = app_controller
+        self.file = os.path.join(os.path.dirname(__file__), "memory", "activity.json")
+
+    def log_activity(self):
+        title = self.apps.get_active_window_title()
+        now = datetime.now().strftime("%H:%M")
+
+        entry = {
+            "time": now,
+            "title": title
+        }
+
+        data = []
+        if os.path.exists(self.file):
+            with open(self.file, "r") as f:
+                data = json.load(f)
+
+        data.append(entry)
+
+        # keep last 50 entries only
+        data = data[-50:]
+
+        with open(self.file, "w") as f:
+            json.dump(data, f, indent=2)
+
+
+
+import tkinter as tk
+import threading
+
+
+class PopupUI:
+    def __init__(self):
+        self.root = None
+
+    def show(self, message):
+        def run():
+            if self.root:
+                try:
+                    self.root.destroy()
+                except:
+                    pass
+
+            self.root = tk.Tk()
+            self.root.overrideredirect(True)
+            self.root.configure(bg="black")
+            self.root.attributes("-topmost", True)
+
+            # 🔥 SIZE + POSITION
+            w, h = 900, 300
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+
+            x = (screen_w // 2) - (w // 2)
+            y = screen_h - h - 50
+
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+            # 🔥 🔥 🔥 PASTE YOUR HUD CODE HERE 🔥 🔥 🔥
+
+            container = tk.Frame(self.root, bg="black")
+            container.pack(fill="both", expand=True)
+
+            # LEFT
+            left = tk.Frame(container, bg="black")
+            left.pack(side="left", fill="y", padx=10)
+
+            tk.Label(left, text="SYSTEM", fg="#00ffff", bg="black",
+                    font=("Consolas", 12, "bold")).pack(anchor="w")
+
+            tk.Label(left, text="STATUS: ACTIVE", fg="#00ffff", bg="black").pack(anchor="w")
+            tk.Label(left, text="AI: ONLINE", fg="#00ffff", bg="black").pack(anchor="w")
+
+            # CENTER
+            center = tk.Frame(container, bg="black")
+            center.pack(side="left", expand=True, fill="both")
+
+            tk.Label(center,
+                    text="PINK ASSISTANT",
+                    fg="#00ffff",
+                    bg="black",
+                    font=("Consolas", 16, "bold")).pack(pady=5)
+
+            tk.Label(center,
+                    text=message,
+                    fg="#00ffff",
+                    bg="black",
+                    wraplength=600,
+                    font=("Consolas", 14)).pack(pady=20)
+
+            # RIGHT
+            right = tk.Frame(container, bg="black")
+            right.pack(side="right", fill="y", padx=10)
+
+            tk.Label(right, text="WELLBEING", fg="#00ffff", bg="black",
+                    font=("Consolas", 12, "bold")).pack(anchor="e")
+
+            stats = get_wellbeing_stats()
+            score = calculate_focus_score(stats)
+
+            for k, v in stats.items():
+                tk.Label(
+                    right,
+                    text=f"{k}: {v}m",
+                    fg="#00ffff",
+                    bg="black"
+                ).pack(anchor="e")
+
+            tk.Label(
+                right,
+                text=f"Focus: {score}%",
+                fg="#00ffff",
+                bg="black",
+                font=("Consolas", 12, "bold")
+            ).pack(anchor="e", pady=5)
+            
+            
+            
+
+            self.root.mainloop()
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def close(self):
+        if self.root:
+            try:
+                self.root.quit()
+                self.root.destroy()
+            except:
+                pass
+            self.root = None
+
+def clean_title(title):
+    title = title.lower()
+
+    # remove browser junk
+    for junk in ["- microsoft edge", "- google chrome", "- personal"]:
+        title = title.replace(junk, "")
+
+    return title.strip()
+
+
+import re
+
+def clean_title(title):
+    title = title.lower()
+
+    for junk in ["- microsoft edge", "- google chrome", "- personal"]:
+        title = title.replace(junk, "")
+
+    title = re.sub(r"and \d+ more pages", "", title)
+    title = re.sub(r"[|]", " ", title)
+
+    return " ".join(title.split()).strip()
+
+def classify_activity(title):
+    title = title.lower()
+
+    if any(k in title for k in ["code", "vscode", "github", "leetcode", "python"]):
+        return "coding"
+
+    elif any(k in title for k in ["tutorial", "course", "learn", "lecture", "ai"]):
+        return "learning"
+
+    elif any(k in title for k in ["youtube", "song", "movie", "ipl", "comedy"]):
+        return "entertainment"
+
+    return "other"
+
+def get_wellbeing_stats():
+    path = os.path.join(os.path.dirname(__file__), "memory", "activity.json")
+
+    if not os.path.exists(path):
+        return {}
+
+    with open(path, "r") as f:
+        data = json.load(f)
+
+    stats = {
+        "coding": 0,
+        "learning": 0,
+        "entertainment": 0,
+        "other": 0
+    }
+
+    for d in data:
+        title = clean_title(d["title"])
+        category = classify_activity(title)
+
+        stats[category] += 10   # each log = 10 sec
+
+    # convert to minutes
+    for k in stats:
+        stats[k] = round(stats[k] / 60, 1)
+
+    return stats
+
+def calculate_focus_score(stats):
+    productive = stats["coding"] + stats["learning"]
+    total = sum(stats.values())
+
+    if total == 0:
+        return 0
+
+    return int((productive / total) * 100)
+
+
+def activity_to_text():
+    path = os.path.join(os.path.dirname(__file__), "memory", "activity.json")
+
+    if not os.path.exists(path):
+        return []
+
+    with open(path, "r") as f:
+        data = json.load(f)
+
+    if not data:
+        return []
+
+    # latest activity
+    latest = clean_title(data[-1]["title"])
+
+    # approx 10 min ago (60 logs × 10 sec)
+    past_index = max(0, len(data) - 60)
+    past = clean_title(data[past_index]["title"])
+
+    return [latest, past]
+
+
+def get_yesterday_activity():
+    path = os.path.join(os.path.dirname(__file__), "memory", "activity.json")
+
+    if not os.path.exists(path):
+        return []
+
+    with open(path, "r") as f:
+        data = json.load(f)
+
+    if not data:
+        return []
+
+    # get current time
+    now = datetime.now()
+
+    results = []
+
+    for d in data:
+        try:
+            t = datetime.strptime(d["time"], "%H:%M")
+
+            # assume same day → simulate "yesterday" using older logs
+            # (since we don't store date yet)
+            results.append(clean_title(d["title"]))
+        except:
+            continue
+
+    # return last meaningful 3 activities
+    return list(dict.fromkeys(results))[-5:]  
+    
+        
+    
 # ========== Main Assistant =====
 class PinkAssistant:
     def __init__(self):
         self.voice = VoiceEngine()
         self.system = SystemController(self.voice)
+        self.rag = SimpleRAG(
+            os.path.join(os.path.dirname(__file__), "memory", "knowledge.txt")
+        )
+        self.tracker = ActivityTracker(self.system.apps)
+        self.ui = PopupUI()
+        self.ui_active = False
+        threading.Thread(target=self.track_loop, daemon=True).start()
         self.boot()
 
     def boot(self):
@@ -988,12 +1396,47 @@ class PinkAssistant:
         if h < 18:
             return "afternoon"
         return "evening"
+    
+    
+    def track_loop(self):
+        while True:
+            self.tracker.log_activity()
+            time.sleep(10)
 
     def parse_and_execute(self, command):
-        c = (command or "").lower()
+        c = (command or "").lower().strip()
+
+        show_ui = False
+
+        if "show me" in c or "display" in c:
+            show_ui = True
+            c = c.replace("show me", "").replace("display", "").strip()
+
+
+        # 🔥 NOW THIS WILL WORK
+        if "digital wellbeing" in c or "focus report" in c:
+            stats = get_wellbeing_stats()
+            score = calculate_focus_score(stats)
+
+            msg = f"You spent {stats['coding']} minutes coding, {stats['learning']} minutes learning, and your focus score is {score} percent."
+
+            if show_ui:
+                self.ui.show(msg)
+                self.ui_active = True
+
+            self.voice.speak(msg)
+            return
+        
         # ===== STRIP WAKE WORD (CRITICAL FIX) =====
         if c.startswith(CONFIG["wake_word"] + " "):
             c = c[len(CONFIG["wake_word"]) + 1:]
+        
+        
+        show_ui = False
+
+        if "show me" in c or "display" in c:
+            show_ui = True
+            c = c.replace("show me", "").replace("display", "").strip()
             
         if c.startswith("search "):
             query = c.replace("search", "").strip()
@@ -1044,11 +1487,7 @@ class PinkAssistant:
           
           
             
-        # ----- OPEN GMAIL (EXACT MATCH) -----
-        if c == "open gmail":
-            os.system("start https://mail.google.com")
-            self.voice.speak("Opened Gmail.")
-            return
+        
 
         if not c or c == "unrecognized":
             return
@@ -1253,10 +1692,7 @@ class PinkAssistant:
             self.voice.speak("New tab opened.")
             return
 
-
-
-
-        if "close tab" in c:
+        if "close" in c and "tab" in c:
             pyautogui.hotkey("ctrl", "w")
             self.voice.speak("Tab closed.")
             return
@@ -1452,20 +1888,251 @@ class PinkAssistant:
                 os.system("shutdown /s /t 5")
             return
 
-        self.voice.speak("I didn't understand that command.")
+        
+        if "what was i doing" in c:
+            activity = activity_to_text()
 
-    def run(self):
-        print(f"Pink Assistant running. Say the wake word exactly: '{CONFIG['wake_word']}' before your command.")
-        while True:
-            text = self.voice.listen()
-            if not text:
-                time.sleep(0.4)
-                continue
-            if CONFIG["wake_word"] in text:
-                self.parse_and_execute(text)
+            if activity:
+                latest = activity[0]
+                past = activity[1]
+
+                if latest == past:
+                    msg = f"You were working on {latest} recently."
+                else:
+                    msg = f"You were recently working on {latest}, and about 10 minutes ago you were working on {past}"
+
+                # 🔥 FORCE UI ALWAYS
+                self.ui.show(msg)
+                self.ui_active = True
+
+                self.voice.speak(msg)
             else:
-                print("No wake word detected; ignoring.")
-            time.sleep(0.2)
+                self.voice.speak("No activity found.")
+
+            return
+        
+        
+        n
+        
+        # ---------- RAG BLOCK ----------
+        context = self.rag.retrieve(c)
+
+        # add activity memory
+        context = []
+
+        if "what was i doing" in c:
+            context = activity_to_text()
+        else:
+            context = self.rag.retrieve(c)
+
+        print("RAG context:", context)
+
+        if context:
+            rag_prompt = f"""
+        You MUST answer ONLY using the given context.
+
+        Context:
+        {chr(10).join(context)}
+
+        Question:
+        {c}
+
+        Answer:
+        """
+
+            response = ollama.chat(
+                model="llama3:8b",
+                messages=[
+                    {"role": "system", "content": "You are a precise assistant."},
+                    {"role": "user", "content": rag_prompt}
+                ]
+            )
+
+            answer = response["message"]["content"]
+            self.voice.speak(answer)
+            return
+        # ---------- END RAG ----------
+        
+        
+        
+        generated = self.ask_llm(c)
+        print("LLM Generated:", generated)
+
+        if not generated:
+            self.voice.speak("I couldn't understand that.")
+            return
+
+        # Prevent infinite loop if LLM returns same text
+        if generated.strip() == c.strip():
+            self.voice.speak("I couldn't understand that.")
+            return
+
+        # Add wake word back and execute translated command
+        translated_command = CONFIG["wake_word"] + " " + generated
+        self.parse_and_execute(translated_command)
+        return
+
+        action = data.get("action")
+
+        # ===== ACTION HANDLING =====
+        if action == "open_web":
+            url = data.get("url")
+            if url:
+                os.system(f"start {url}")
+                self.voice.speak("Opening website.")
+            return
+        
+        if action == "open_app":
+            target = data.get("target")
+            ok = self.system.apps.open_app(target)
+            self.voice.speak(f"Opened {target}." if ok else f"Couldn't open {target}.")
+            return
+
+        if action == "close_app":
+            target = data.get("target")
+            ok = self.system.apps.close_app(target)
+            self.voice.speak(f"Closed {target}." if ok else f"Couldn't close {target}.")
+            return
+
+        if action == "check_battery":
+            self.voice.speak(self.system.check_battery())
+            return
+
+        if action == "get_time":
+            self.voice.speak(f"The time is {self.system.get_time()}")
+            return
+
+        if action == "search_youtube":
+            query = data.get("query")
+            self.voice.speak(self.system.open_youtube(query))
+            return
+
+        if action == "search_spotify":
+            query = data.get("query")
+            self.system.apps.search_spotify(query)
+            self.system.apps.play_first_result()
+            self.voice.speak("Playing on Spotify.")
+            return
+
+        if action == "shutdown":
+            self.voice.speak("Shutting down.")
+            os.system("shutdown /s /t 5")
+            return
+
+        if action == "chat":
+            self.voice.speak(data.get("response"))
+            return
+
+        # fallback
+        self.voice.speak("I couldn't understand the command.")
+        
+        
+        
+        
+        
+
+        print("LLM Generated:", generated)
+
+        if generated.startswith("CHAT:"):
+            self.voice.speak(generated.replace("CHAT:", "").strip())
+        else:
+            # Recursively execute generated command
+            self.parse_and_execute(generated)
+
+    def ask_llm(self, prompt):
+        response = ollama.chat(
+            model="llama3:8b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """
+    You are a command translator.
+
+    Your job:
+    Convert the user's sentence into a valid Pink Assistant command.
+
+    Rules:
+    - Return ONLY a command.
+    - No JSON.
+    - No explanation.
+    - No notes.
+    - No extra text.
+
+    Examples:
+
+    User: check my emails
+    Output: open gmail
+
+    User: any new mails
+    Output: open gmail
+
+    User: play faded song
+    Output: search spotify faded
+
+    User: open telegram
+    Output: open telegram
+
+    User: what time is it
+    Output: time
+    """
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+
+        return response["message"]["content"].strip().lower()
+    
+    def run(self):
+        print("🎤 Listening...")
+
+        while True:
+            try:
+                text = self.voice.listen()
+
+                if not text:
+                    continue
+
+                text = (text or "").lower().strip()
+                print("Heard:", text)
+
+                # 🔥 IGNORE NOISE
+                if len(text.split()) <= 1:
+                    print("Ignored noise:", text)
+                    continue
+
+                # 🔥 INTERRUPT (SPACE)
+                if keyboard.is_pressed("space"):
+                    print("INTERRUPT TRIGGERED")
+                    self.voice.stop()
+                    time.sleep(0.3)
+                    continue
+
+                # 🔥 GLOBAL CLOSE UI
+                if any(word in text for word in ["ok", "okay", "close", "fine", "good", "nice"]):
+                    if self.ui_active:
+                        print("FORCED UI CLOSE")
+                        if hasattr(self, "ui") and self.ui:
+                            self.ui.close()
+                        self.ui_active = False
+                        self.voice.speak("Alright.")
+                        continue
+
+                # 🔥 UI MODE
+                if self.ui_active:
+                    self.parse_and_execute(text)
+                    continue
+
+                # 🔥 NORMAL MODE
+                if CONFIG["wake_word"] in text:
+                    self.parse_and_execute(text)
+                else:
+                    print("No wake word detected")
+
+            except Exception as e:
+                print("Loop error:", e)
 
 # ========== Start ==========
 if __name__ == "__main__":

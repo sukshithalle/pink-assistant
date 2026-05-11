@@ -1,0 +1,18 @@
+after showing the desktop and we have to open the minimized apps or webs etc
+switch feature is not switching the currrent apps but its opening a new app
+not opening gmail
+not opening new tab
+the spotify screen placement is not good and select 1 2 3 not working but play 1 2 3 is working 
+not opening wifi setting insead just windows setting 
+not showing display setting  User said: pink display settings
+PINK: I couldn't determine how much to change the brightness by.
+not showing battery setting insead User said: pink battery settings
+PINK: Battery is at 100% and plugged in.
+Listening...
+User said: pink open battery settings
+PINK: Battery is at 100% and plugged in.
+Listening...
+not accessing the cemara
+deleting is not happening 
+folders are not created 
+the search should be in the same apps even if it is app or tab and search must focus on the search bar on the current opened tab if its not searchable then it should go to google 

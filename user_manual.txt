@@ -1,0 +1,299 @@
+==============================
+PINK ASSISTANT — USER MANUAL
+==============================
+
+Wake word (MANDATORY):
+---------------------
+All commands must start with:
+
+pink <command>
+
+
+==============================
+BASIC SYSTEM COMMANDS
+==============================
+
+pink time
+pink what is the time
+
+pink battery
+pink charge
+
+
+==============================
+WINDOW & DESKTOP COMMANDS
+==============================
+
+pink minimize window
+pink maximize window
+pink close current window
+pink show desktop
+pink open task manager
+
+pink switch to chrome
+pink switch to whatsapp
+pink switch to vscode
+pink switch to notepad
+pink switch to cmd
+pink switch to spotify
+pink switch to edge
+(works for any app name)
+
+
+==============================
+APPLICATION COMMANDS
+==============================
+
+pink open chrome
+pink open whatsapp
+pink open vscode
+pink open cmd
+pink open notepad
+pink open spotify
+pink open edge
+
+pink close chrome
+pink close whatsapp
+pink close vscode
+pink close cmd
+pink close notepad
+pink close spotify
+
+
+==============================
+FILE & FOLDER COMMANDS
+==============================
+
+pink open downloads
+
+pink create folder named projects
+pink create folder named ai work
+(creates folder on Desktop)
+
+pink search file report
+pink search file resume
+
+pink delete file resume dot pdf
+→ asks confirmation:
+   say "yes" to delete
+   say "no" to cancel
+
+
+==============================
+BRIGHTNESS COMMANDS
+==============================
+
+pink increase brightness
+pink decrease brightness
+
+pink brightness up
+pink brightness down
+
+pink set brightness to 50
+pink brightness to 70 percent
+
+pink increase brightness by 20
+pink decrease brightness by 30
+
+
+==============================
+VOLUME COMMANDS (SYSTEM)
+==============================
+
+pink volume up
+pink volume down
+
+pink increase volume
+pink decrease volume
+
+pink mute volume
+pink mute
+
+
+==============================
+ZOOM COMMANDS (ANY APP)
+==============================
+
+pink zoom in
+pink zoom out
+
+pink zoom in by 20
+pink zoom out by 30 percent
+
+pink reset zoom
+
+(works in browsers, VS Code, PDFs, etc.)
+
+
+==============================
+BROWSER & INTERNET COMMANDS
+==============================
+
+pink open gmail
+
+pink search machine learning roadmap
+pink search data science projects
+
+pink scroll down
+pink scroll up
+
+pink refresh page
+
+pink open new tab
+pink close tab
+
+
+==============================
+YOUTUBE COMMANDS
+==============================
+
+pink open youtube
+
+pink search faded on youtube
+pink play faded on youtube
+
+pink youtube next
+pink next video
+
+pink forward
+pink rewind
+
+pink close youtube
+pink close youtube tab
+
+
+==============================
+SPOTIFY COMMANDS
+==============================
+
+pink open spotify
+
+pink search spotify faded
+pink search spotify shape of you
+
+pink select 1
+pink select 2
+pink select 3
+
+
+pink play
+pink play 2
+
+pink pause
+pink resume
+pink stop
+
+pink next
+pink previous
+
+pink spotify volume up
+pink spotify volume down
+pink spotify mute
+
+pink shuffle
+pink like
+pink save song
+pink heart song
+
+
+==============================
+SETTINGS COMMANDS
+==============================
+
+pink open settings
+
+pink wifi settings
+pink bluetooth settings
+pink display settings
+pink sound settings
+pink battery settings
+
+
+==============================
+AUDIO & NOTIFICATIONS
+==============================
+
+pink change output to headphones
+(opens sound settings)
+
+pink mute notifications
+(opens notification settings)
+
+pink mute microphone
+(Windows 11 shortcut)
+
+
+==============================
+FOCUS & SECURITY
+==============================
+
+pink do not disturb
+
+pink lock my laptop
+pink log out
+
+
+==============================
+SCREEN & CAMERA
+==============================
+
+pink take screenshot
+(saved to Pictures/Screenshots)
+
+pink open camera
+
+
+==============================
+SYSTEM INFORMATION
+==============================
+
+pink cpu usage
+(reads CPU + RAM)
+
+pink check storage
+
+
+==============================
+DEVELOPER / STUDENT COMMANDS
+==============================
+
+pink open terminal
+
+pink run my code
+(context-aware:
+ VS Code / CMD / Browser)
+
+
+==============================
+POWER COMMANDS
+==============================
+
+pink shutdown
+pink sleep
+
+
+==============================
+ERROR HANDLING
+==============================
+
+If command is unknown:
+PINK says:
+"I didn't understand that command."
+
+
+==============================
+IMPORTANT NOTES
+==============================
+
+• Wake word "pink" is REQUIRED
+• Commands are NOT case-sensitive
+• Some actions depend on the active window
+• Dangerous actions (delete) require confirmation
+• Spotify & YouTube use keyboard/mouse automation
+• Windows Store apps use AppsFolder launch
+
+
+==============================
+END OF MANUAL
+==============================
+    

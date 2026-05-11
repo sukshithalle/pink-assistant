@@ -1,12 +1,6 @@
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-
-# Virtual environment
-venv310/
+LLM/OllamaSetup.exe
+models/
+*.zip
+*.exe
 venv/
-
-# OS junk
-.DS_Store
-Thumbs.db
+__pycache__/
